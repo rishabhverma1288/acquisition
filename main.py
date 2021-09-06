@@ -13,311 +13,112 @@ from sklearn.svm import SVC
 from sklearn.linear_model import LinearRegression
 from sklearn import metrics
 import matplotlib.pyplot as plt
+import base64
 
-
-
-st.title("Streamlit App")
+st.title("New Users App")
 
 st.write("""# Machine learning through Streamlit """)
 data = st.file_uploader("Upload a Dataset", type=["csv", "xlsx"])
+
 
 if data is None:
     st.write("Select a CSV or n XLSX File")
 
 else:
-
+    @st.cache(suppress_st_warning=True,allow_output_mutation=True)
     def reader(dat):
         try:
             r = dat.name
             datasetname = st.write(dat.name)
             if str(r).endswith('csv'):
-                reader.m = pd.read_csv(dat)
+                qw = pd.read_csv(dat)
 
             elif str(r).endswith('xlsx'):
-                reader.m = pd.read_excel(dat)
-
+                qw = pd.read_excel(dat)
+            return qw
         except:
             st.write("Select a CSV or n XLSX File")
-    reader(data)
-    state_dropdown = st.sidebar.multiselect('Charts',['Pairplot','Barplot','Jointplot'])
-    target_column = st.sidebar.selectbox('Main Target',tuple(reader.m.columns))
 
-    dropper = st.sidebar.checkbox('Drop Columns?')
-    if dropper:
-        drop_column = st.sidebar.multiselect('Columns',list(reader.m.columns))
-        if st.sidebar.checkbox('Drop'):
-            reader.m = reader.m.drop(drop_column,axis=1)
-
-    dumy = st.sidebar.checkbox('Make Dummies?')
-    if dumy:
-        dumy_columns = st.sidebar.multiselect('Columns',list(reader.m.columns),key = '12')
-        if len(dumy_columns) == 1:
-            if st.sidebar.checkbox('Dummy Execute'):
-                dummies = pd.get_dummies(reader.m[dumy_columns[0]],drop_first=True)
-                reader.m = reader.m.drop([dumy_columns[0]],axis=1)
-                reader.m = pd.concat([reader.m,dummies],axis=1)
-        else:
-            if st.sidebar.checkbox('Dummy Execute'):
-                dummies = pd.get_dummies(reader.m[dumy_columns],drop_first=True)
-                reader.m = reader.m.drop(dumy_columns,axis=1)
-                reader.m = pd.concat([reader.m,dummies],axis=1)
-
-
-    st.write(reader.m)
-
-    if st.sidebar.checkbox('Show Correlation plot'):
-        corr_col = st.sidebar.selectbox('Main Target',tuple(reader.m.columns),key='11')
-        st.write(reader.m.corr()[corr_col])
-
+    df = reader(data)
 
 try:
-    main_df = reader.m
+    st.write(df)
 except:
-    print('hi')
+    st.write("")
 
 @st.cache(suppress_st_warning=True)
-def pair(ft):
-    for x  in state_dropdown:
-        if x == 'Pairplot':
-            st.set_option('deprecation.showPyplotGlobalUse', False)
-            st.write(sns.pairplot(reader.m))
-            st.pyplot()
-        elif x == 'Barplot':
-            try:
-                st.set_option('deprecation.showPyplotGlobalUse', False)
-                x_g = st.selectbox("Barplot X Column",tuple(reader.m.columns))
-                y_g = st.selectbox("Barplot Y Column",tuple(reader.m.columns))
-                st.write(sns.barplot(x=x_g, y=y_g,data=reader.m))
-                st.pyplot()
-            except:
-                st.write('Please Select Valid Column')
-        elif x == 'Jointplot':
-            x_g = st.selectbox("Barplot X Column",tuple(reader.m.columns),key='1')
-            y_g = st.selectbox("Barplot Y Column",tuple(reader.m.columns),key='2')
-            kin = st.selectbox("Select kind",("scatter","reg","hex"))
-            st.set_option('deprecation.showPyplotGlobalUse', False)
-            if kin == 'scatter':
-                try:
-                    target = st.selectbox("Target Column",tuple(reader.m.columns))
-                    st.write(sns.jointplot(x=x_g,y=y_g,hue=target,data=reader.m,kind=kin))
-                    st.pyplot()
-                except:
-                    st.write('Please Choose a Valid Target Column')
-            else:
-                st.write(sns.jointplot(x=x_g,y=y_g,data=reader.m,kind=kin))
-                st.pyplot()
+def plam():
+    df['Customer_Email'] = df['Customer_Email'].str.lower()
+    df['Order_date']= pd.to_datetime(df['Order_date'])
+    df['Day'] = df['Order_date'].dt.day
+    df['Month'] = df['Order_date'].dt.month
+    df['Year'] = df['Order_date'].dt.year
+    df['Date'] = df['Order_date'].dt.date
+    df['Time'] = df['Order_date'].dt.time
+    df.sort_values('Order_date',inplace=True)
+    df['Day']= df['Day'].apply(str)
+    df['Month']= df['Month'].apply(str)
+    df['Year']= df['Year'].apply(str)
+    df['Date'] = df['Date'].apply(str)
+    df['Time']= df['Time'].apply(str)
+    df['Mon_Year'] = df['Month'].str.cat(df['Year'],sep='/')
+    df['Period'] = df.Customer_Email.str.cat(df[['Date','Time']],sep='/')
+    df3 = df.drop_duplicates('Customer_Email',keep='first')
+    df4 = df3['Period']
+    df4 = pd.DataFrame(df4)
+    r = 1
+    df4['Yes'] = r
+    df_main = pd.merge(df, df4, on ='Period', how ='left')
+    df_main['Yes'] = df_main['Yes'].fillna(0)
+    def user_new(x):
+        if x == 1:
+            return 'New'
+        else:
+            return 'Old'
+    df_main['New User'] = df_main['Yes'].apply(user_new)
+    df_main['Sum'] = r
 
-if data is not None:
-    pair(state_dropdown)
-    classifier = st.sidebar.selectbox("Select Classifier",("None",'Linear Regression',"Logistic","Decision Tree","SVM","Random Forest"))
+    def month_names(x):
+        return x.strftime("%B")
+    df_main['Month_Name'] = df_main['Order_date'].apply(month_names)
 
-@st.cache(suppress_st_warning=True)
-def split_step1():
-    if classifier == 'Logistic':
-        X_cols = st.sidebar.multiselect('X Columns',list(reader.m.columns),default=list(reader.m.columns))
-        y_cols = st.sidebar.selectbox('Target Column',tuple(reader.m.columns),key='4')
-        split_step1.X = reader.m[X_cols]
-        split_step1.y = reader.m[y_cols]
-        split_step1.splt = st.sidebar.slider('Split By',min_value =0.0,max_value = 1.0,value=0.25)
-    else:
-        X_cols = st.sidebar.multiselect('X Columns',list(reader.m.columns),default=list(reader.m.columns))
-        y_cols = st.sidebar.selectbox('Target Column',tuple(reader.m.columns),key = '3')
-        split_step1.X = reader.m[X_cols].values
-        split_step1.y = reader.m[y_cols].values
-        split_step1.splt = st.sidebar.slider('Split By',min_value =0.0,max_value = 1.0,value=0.25)
+    def week_number_of_month(date_value):
+         return (date_value.isocalendar()[1] - date_value.replace(day=1).isocalendar()[1] + 1)
+    df_main['Month Week Number'] = df_main['Order_date'].apply(week_number_of_month)
 
+    def month_part(x):
+        if int(x) > 22:
+            return 'Month P4'
+        elif int(x) > 14:
+            return 'Month P3'
+        elif int(x) > 7:
+            return 'Month P2'
+        else:
+            return 'Month P1'
+    df_main['Month Parts'] = df_main['Day'].apply(month_part)
+    df_main['Month Parts Month Wise'] = df_main.Month_Name.str.cat(df_main['Month Parts'],sep=' - ')
+    def hours(x):
+        return int(x.hour)
+    df_main['Hours'] = df_main['Order_date'].apply(hours)
+    def hour_part(x):
+        if x >= 18:
+            return 'Night'
+        elif x >= 15:
+            return 'Evening'
+        elif x >= 12:
+            return 'Afternoon'
+        elif x >= 6:
+            return 'Morning'
+        elif x >= 0:
+            return 'Midnight'
+    df_main['Hours_Part'] = df_main['Hours'].apply(hour_part)
 
-if data is not None:
-    splitter = st.sidebar.checkbox('Split')
+    return df_main
 
-
-
-
-def decision():
-    dtree = DecisionTreeClassifier()
-    dtree = dtree.fit(X_train,y_train)
-    predictions = dtree.predict(X_test)
-    st.write(classification_report(y_test,predictions))
-    st.write(confusion_matrix(y_test,predictions))
-
-    if st.sidebar.button('Export Predictions'):
-        predictions = dtree.predict(split_step1.X)
-        main_df['predictions'] = predictions
-        main_df.to_excel('predicted_decision_tree.xlsx',index=0)
-    to_be_predicted = st.sidebar.file_uploader("Upload a Dataset", type=["csv", "xlsx"],key='5')
-    if to_be_predicted is not None:
-        def p_reader(dat):
-            try:
-                r = dat.name
-                datasetname = st.write(dat.name)
-                if str(r).endswith('csv'):
-                    p_main_df = pd.read_csv(dat)
-                    st.write('Dataset to be predicted yet')
-                    st.write(p_main_df)
-                elif str(r).endswith('xlsx'):
-                    p_main_df = pd.read_excel(dat)
-                    st.write('Dataset to be predicted yet')
-                    st.write(p_main_df)
-            except:
-                st.sidebar.write("Select a CSV or n XLSX File")
-        p_reader(to_be_predicted)
-
-        splitter1 = st.sidebar.checkbox('Split New Dataset')
-        if splitter1:
-            X_cols_pre = st.sidebar.multiselect('X Columns',list(p_main_df.columns))
-            Xp = p_main_df[X_cols_pre].values
-        if st.sidebar.button('Do Predictions'):
-            predictions1 = dtree.predict(Xp)
-            p_main_df['predictions'] = predictions1
-            p_main_df.to_excel('predicted_new_dataset_decis.xlsx',index=0)
-
-    #elif rp == 'Logistic':
-
-def logmo():
-    log_model = LogisticRegression()
-    log_model = log_model.fit(X_train,y_train)
-    predictions = log_model.predict(X_test)
-    st.write(classification_report(y_test,predictions))
-    st.write(confusion_matrix(y_test,predictions))
-
-    if st.sidebar.button('Export Predictions'):
-        predictions = log_model.predict(split_step1.X)
-        main_df['predictions'] = predictions
-        main_df.to_excel('predicted_logistic.xlsx',index=0)
-
-    to_be_predicted = st.sidebar.file_uploader("Upload a Dataset", type=["csv", "xlsx"],key='7')
-    if to_be_predicted is not None:
-        def p_reader(dat):
-            try:
-                r = dat.name
-                datasetname = st.write(dat.name)
-                if str(r).endswith('csv'):
-                    p_main_df = pd.read_csv(dat)
-                    st.write('Dataset to be predicted yet')
-                    st.write(p_main_df)
-                elif str(r).endswith('xlsx'):
-                    p_main_df = pd.read_excel(dat)
-                    st.write('Dataset to be predicted yet')
-                    st.write(p_main_df)
-            except:
-                st.sidebar.write("Select a CSV or n XLSX File")
-        p_reader(to_be_predicted)
-
-        splitter1 = st.sidebar.checkbox('Split New Dataset')
-        if splitter1:
-            X_cols_pre = st.sidebar.multiselect('X Columns',list(p_main_df.columns))
-            Xp = p_main_df[X_cols_pre].values
-        if st.sidebar.button('Do Predictions'):
-            predictions1 = log_model.predict(Xp)
-            p_main_df['predictions'] = predictions1
-            p_main_df.to_excel('predicted_new_dataset_log.xlsx',index=0)
-#else:
-    #st.write('Upload dataset on which model will do predictions')
-
-def svc():
-    svc_model = SVC()
-    svc_model = svc_model.fit(X_train,y_train)
-    predictions = svc_model.predict(X_test)
-    st.write(classification_report(y_test,predictions))
-    st.write(confusion_matrix(y_test,predictions))
-
-    if st.sidebar.button('Export Predictions'):
-        predictions = svc_model.predict(split_step1.X)
-        main_df['predictions'] = predictions
-        main_df.to_excel('predicted_SVM.xlsx',index=0)
-
-    to_be_predicted = st.sidebar.file_uploader("Upload a Dataset", type=["csv", "xlsx"],key='9')
-    if to_be_predicted is not None:
-        def p_reader(dat):
-            try:
-                r = dat.name
-                datasetname = st.write(dat.name)
-                if str(r).endswith('csv'):
-                    p_main_df = pd.read_csv(dat)
-                    st.write('Dataset to be predicted yet')
-                    st.write(p_main_df)
-                elif str(r).endswith('xlsx'):
-                    p_main_df = pd.read_excel(dat)
-                    st.write('Dataset to be predicted yet')
-                    st.write(p_main_df)
-            except:
-                st.sidebar.write("Select a CSV or n XLSX File")
-        p_reader(to_be_predicted)
-
-        splitter1 = st.sidebar.checkbox('Split New Dataset')
-        if splitter1:
-            X_cols_pre = st.sidebar.multiselect('X Columns',list(p_main_df.columns))
-            Xp = p_main_df[X_cols_pre].values
-        if st.sidebar.button('Do Predictions'):
-            predictions1 = log_model.predict(Xp)
-            p_main_df['predictions'] = predictions1
-            p_main_df.to_excel('predicted_new_dataset_svm.xlsx',index=0)
-
-def lmod():
-    lm = LinearRegression()
-    lm.fit(X_train,y_train)
-    
-    predictions = lm.predict( X_test)
-    if st.checkbox('Show Prediction Plot'):
-        st.write(plt.scatter(y_test,predictions))
-        st.write(sns.jointplot(x=y_test,y=predictions,kind='reg'))
-        st.pyplot()
-    plt.xlabel('Y Test')
-    plt.ylabel('Predicted Y')
-    st.write('MAE:', metrics.mean_absolute_error(y_test, predictions))
-    st.write('MSE:', metrics.mean_squared_error(y_test, predictions))
-    st.write('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, predictions)))
-    sns.distplot((y_test-predictions),bins=1)
-
-    if st.sidebar.button('Export Predictions'):
-        predictions = lm.predict(split_step1.X)
-        main_df['predictions'] = predictions
-        main_df.to_excel('predicted_linear.xlsx',index=0)
-
-    to_be_predicted = st.sidebar.file_uploader("Upload a Dataset", type=["csv", "xlsx"],key='9')
-    if to_be_predicted is not None:
-        def p_reader(dat):
-            try:
-                r = dat.name
-                datasetname = st.write(dat.name)
-                if str(r).endswith('csv'):
-                    p_main_df = pd.read_csv(dat)
-                    st.write('Dataset to be predicted yet')
-                    st.write(p_main_df)
-                elif str(r).endswith('xlsx'):
-                    p_main_df = pd.read_excel(dat)
-                    st.write('Dataset to be predicted yet')
-                    st.write(p_main_df)
-            except:
-                st.sidebar.write("Select a CSV or n XLSX File")
-        p_reader(to_be_predicted)
-
-        splitter1 = st.sidebar.checkbox('Split New Dataset')
-        if splitter1:
-            X_cols_pre = st.sidebar.multiselect('X Columns',list(p_main_df.columns))
-            Xp = p_main_df[X_cols_pre].values
-        if st.sidebar.button('Do Predictions'):
-            predictions1 = log_model.predict(Xp)
-            p_main_df['predictions'] = predictions1
-            p_main_df.to_excel('predicted_new_dataset_svm.xlsx',index=0)
-
-
-if data is not None:
-    if splitter:
-        split_step1()
-        try:
-            X_train,X_test, y_train, y_test = train_test_split(split_step1.X,split_step1.y,test_size=split_step1.splt,
-                                                            random_state=101)
-        except:
-            st.write('Please Select Split Option in Sidebar and a Categorical Binary column in Target Column Selection')
-
-        executioner = st.sidebar.checkbox('Execute Classifier')
-        if executioner:
-            if classifier == 'Decision Tree':
-                decision()
-            elif classifier == 'Logistic' :
-                logmo()
-            elif classifier == 'SVM' :
-                svc()
-            elif classifier == 'Linear Regression' :
-                lmod()
+if st.checkbox('Show Transform'):
+    p = plam()
+    st.write(p)
+    csv = p.to_csv(index=False)
+    b64 = base64.b64encode(csv.encode()).decode()  # some strings
+    linko= f'<a href="data:file/csv;base64,{b64}" download="myfilename.csv">Download csv file</a>'
+    st.markdown(linko, unsafe_allow_html=True)
